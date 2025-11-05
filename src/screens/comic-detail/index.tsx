@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ScrollView,
   View,
@@ -18,38 +18,67 @@ import {
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { navigationRef } from '@src/navigations';
+import firestore from '@react-native-firebase/firestore';
+import { useComicStore } from '@src/zustand/useComicStore';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { TAppNavigationParam } from '@src/utils/types/navigation.types';
+import { TChapter } from '@src/utils/types/comic.types';
+import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
 
-const ComicDetailScreen = ({ route, navigation }: any) => {
-  const comic = route?.params?.comic ?? {
-    id: '1',
-    name: 'Đại Quản Gia Là Ma Hoàng',
-    author: 'Yi Nan',
-    description:
-      'Ma hoàng chuyển sinh thành quản gia — hành trình vừa hài hước vừa bi tráng! Một câu chuyện hấp dẫn về sức mạnh, lòng trung thành và những âm mưu trong thế giới tu tiên.',
-    banner:
-      'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRs7eXbvIaCJJSW6a5NGrVCae1vbz4eQQdw3g&s',
-    rating: 4.9,
-    views: 520000,
-    status: 'Đang ra',
-    tags: ['Fantasy', 'Action', 'Hài Hước'],
-  };
+type Props = NativeStackScreenProps<TAppNavigationParam, 'ComicDetail'>;
 
-  const chapters = Array.from({ length: 20 }, (_, i) => ({
-    id: i + 1,
-    name: `Chap ${i + 1}`,
-    date: `Cập nhật ${20 - i} ngày trước`,
-  }));
+const ComicDetailScreen = ({ route, navigation }: Props) => {
+  const comic = useComicStore(state => state.getComic(route.params.id));
+  const updateComicChapter = useComicStore(state => state.updateComicChapter);
+  const updateBookMarkComic = useComicBookMarkStore(
+    state => state.updateBookMarkComic,
+  );
+  const bookmarkedComics = useComicBookMarkStore(state => state.comics);
 
+  const isCheckBookMark = useMemo(
+    () => bookmarkedComics.find(item => item.id === comic?.id),
+    [bookmarkedComics, comic],
+  );
   const [isFollowed, setIsFollowed] = useState(false);
   const [search, setSearch] = useState('');
 
-  const filteredChapters = useMemo(() => {
-    if (!search) return chapters;
-    return chapters.filter(ch =>
-      ch.name.toLowerCase().includes(search.toLowerCase()),
-    );
-  }, [search, chapters]);
+  useEffect(() => {
+    if (!comic?.id) return;
 
+    const unsubscribe = firestore()
+      .collection('comics')
+      .doc(comic.id)
+      .collection('chapters')
+      .orderBy('chapter', 'desc')
+      .onSnapshot(
+        snapshot => {
+          const data: TChapter[] = snapshot.docs.map(doc => {
+            const d = doc.data() as TChapter;
+            return {
+              id: doc.id,
+              chapter: d.chapter,
+              createdAt: new Date(d.createdAt),
+              count: d.count || 0,
+              links: d.links || [],
+            };
+          });
+          updateComicChapter(comic.id, data);
+        },
+        error => {
+          console.error('Error loading chapters:', error);
+        },
+      );
+
+    return unsubscribe;
+  }, [comic?.id]);
+
+  const filteredChapters = useMemo(() => {
+    if (!search) return comic?.chapters;
+    return comic?.chapters?.filter(ch =>
+      `chap ${ch.chapter}`.toLowerCase().includes(search.toLowerCase()),
+    );
+  }, [search, comic?.chapters]);
+  if (!comic) return <View />;
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -77,17 +106,12 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
               <View style={styles.badgeRow}>
                 <View style={styles.badge}>
                   <Star size={14} color="#ffcc00" />
-                  <Text style={styles.badgeText}>{comic.rating}</Text>
+                  <Text style={styles.badgeText}>{comic.ratings}</Text>
                 </View>
                 <View style={styles.badge}>
                   <Eye size={14} color="#0af" />
                   <Text style={styles.badgeText}>
                     {comic.views.toLocaleString()}
-                  </Text>
-                </View>
-                <View style={[styles.badge, styles.statusBadge]}>
-                  <Text style={[styles.badgeText, { color: '#ff9f3f' }]}>
-                    {comic.status}
                   </Text>
                 </View>
               </View>
@@ -98,7 +122,7 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
         {/* Nội dung */}
         <View style={styles.content}>
           <View style={styles.tagsContainer}>
-            {comic.tags.map((tag: any) => (
+            {comic.hash_tags?.map((tag: any) => (
               <Text key={tag} style={styles.tagChip}>
                 #{tag}
               </Text>
@@ -108,9 +132,20 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
           <Text style={styles.sectionTitle}>Giới thiệu</Text>
           <Text style={styles.desc}>{comic.description}</Text>
 
-          {/* Nút hành động */}
           <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.readButton}>
+            <TouchableOpacity
+              style={styles.readButton}
+              onPress={() => {
+                if (comic?.chapters.length > 0) {
+                  const lastChapter =
+                    comic?.chapters[comic?.chapters.length - 1];
+                  navigationRef.navigate('ComicReader', {
+                    comicId: comic.id,
+                    chapterId: lastChapter.id,
+                  });
+                }
+              }}
+            >
               <BookOpen size={18} color="#fff" />
               <Text style={styles.readButtonText}>Đọc từ đầu</Text>
             </TouchableOpacity>
@@ -118,19 +153,19 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
             <TouchableOpacity
               style={[
                 styles.followButton,
-                isFollowed && { borderColor: '#ff4444' },
+                isCheckBookMark && { borderColor: '#ff4444' },
               ]}
-              onPress={() => setIsFollowed(!isFollowed)}
+              onPress={() => updateBookMarkComic(comic)}
             >
               <Heart
                 size={18}
-                color={isFollowed ? '#ff4444' : '#ddd'}
-                fill={isFollowed ? '#ff4444' : 'none'}
+                color={isCheckBookMark ? '#ff4444' : '#ddd'}
+                fill={isCheckBookMark ? '#ff4444' : 'none'}
               />
               <Text
                 style={[
                   styles.followText,
-                  { color: isFollowed ? '#ff4444' : '#ddd' },
+                  { color: isCheckBookMark ? '#ff4444' : '#ddd' },
                 ]}
               >
                 {isFollowed ? 'Đang theo dõi' : 'Theo dõi'}
@@ -140,7 +175,6 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
 
           <View style={styles.divider} />
 
-          {/* Ô tìm kiếm chương */}
           <View style={styles.searchContainer}>
             <Search color="#888" size={18} />
             <TextInput
@@ -152,26 +186,39 @@ const ComicDetailScreen = ({ route, navigation }: any) => {
             />
           </View>
 
-          {/* Danh sách chương */}
           <Text style={styles.sectionTitle}>Danh sách chương</Text>
           <View style={styles.chapterList}>
-            {filteredChapters.length === 0 ? (
+            {filteredChapters?.length === 0 ? (
               <Text
                 style={{ color: '#888', textAlign: 'center', marginTop: 10 }}
               >
                 Không tìm thấy chương nào
               </Text>
             ) : (
-              filteredChapters.map(ch => (
+              filteredChapters?.map((ch, index) => (
                 <TouchableOpacity
-                  key={ch.id}
+                  key={index}
                   style={styles.chapterItem}
-                  onPress={() => navigationRef.navigate('ComicReader')}
+                  onPress={() =>
+                    navigationRef.navigate('ComicReader', {
+                      comicId: comic.id,
+                      chapterId: ch.id,
+                    })
+                  }
                 >
                   <View>
-                    <Text style={styles.chapterName}>{ch.name}</Text>
-                    <Text style={styles.chapterDate}>{ch.date}</Text>
+                    <Text
+                      style={styles.chapterName}
+                    >{`Chap ${ch.chapter}`}</Text>
+                    <Text style={styles.chapterDate}>
+                      {ch.createdAt
+                        ? `Cập nhật ${ch.createdAt.toLocaleDateString('vi-VN')}`
+                        : ''}
+                    </Text>
                   </View>
+                  <Text style={{ color: '#888', fontSize: 12 }}>
+                    {ch.count} trang
+                  </Text>
                 </TouchableOpacity>
               ))
             )}
@@ -242,6 +289,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1b1b1f',
     paddingHorizontal: 10,
     paddingVertical: 4,
+    textAlign: 'center',
+    textAlignVertical: 'center',
     borderRadius: 999,
   },
   sectionTitle: {

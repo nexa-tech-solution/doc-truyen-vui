@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   ScrollView,
   View,
@@ -7,18 +7,18 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  useWindowDimensions,
+  ListRenderItemInfo,
+  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { Heart, HeartOff } from 'lucide-react-native';
-import Animated, {
-  Extrapolation,
-  interpolate,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import TabHeader from './components/TabHeader';
 import { navigationRef } from '@src/navigations';
+import firestore from '@react-native-firebase/firestore';
+import { useComicStore } from '@src/zustand/useComicStore';
+import { TComic } from '@src/utils/types/comic.types';
+import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
 
 const comics = [
   {
@@ -70,38 +70,106 @@ const categories = [
 ];
 
 const MainScreen = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const comics = useComicStore(state => state.comics);
+  const updateComics = useComicStore(state => state.updateComic);
+  const updateBookMarkComic = useComicBookMarkStore(
+    state => state.updateBookMarkComic,
+  );
+  const bookmarkedComics = useComicBookMarkStore(state => state.comics);
+
   const [activeTab, setActiveTab] = useState<'all' | 'followed'>('all');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('Tất cả');
-  const [status, setStatus] = useState('Tất cả');
   const [sortBy, setSortBy] = useState('Mới nhất');
-  const [followed, setFollowed] = useState<string[]>([]);
 
-  const toggleFollow = (id: string) => {
-    setFollowed(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id],
-    );
+  const toggleFollow = (comic: TComic) => {
+    updateBookMarkComic(comic);
   };
 
   const filtered = useMemo(() => {
-    let list = comics.filter(c =>
+    let list = (activeTab === 'all' ? comics : bookmarkedComics).filter(c =>
       c.name.toLowerCase().includes(search.toLowerCase()),
     );
     if (category !== 'Tất cả')
-      list = list.filter(c => c.tags.includes(category));
-    if (status !== 'Tất cả') list = list.filter(c => c.status === status);
-    if (activeTab === 'followed')
-      list = list.filter(c => followed.includes(c.id));
+      list = list.filter(c => c.hash_tags.includes(category));
 
     switch (sortBy) {
       case 'Xem nhiều':
         return [...list].sort((a, b) => b.views - a.views);
       case 'Đánh giá cao':
-        return [...list].sort((a, b) => b.rating - a.rating);
+        return [...list].sort((a, b) => b.ratings - a.ratings);
       default:
         return list;
     }
-  }, [search, category, status, sortBy, activeTab, followed]);
+  }, [comics, bookmarkedComics, search, category, sortBy, activeTab]);
+  const renderComicItem = useCallback(
+    ({ item: comic }: ListRenderItemInfo<TComic>) => {
+      const isBookMarked = bookmarkedComics.find(item => item.id === comic.id);
+      return (
+        <TouchableOpacity
+          key={comic.id}
+          style={styles.card}
+          onPress={() =>
+            navigationRef.navigate('ComicDetail', {
+              id: comic.id,
+            })
+          }
+        >
+          <Image source={{ uri: comic.banner }} style={styles.cover} />
+          <View style={styles.info}>
+            <Text style={styles.name}>{comic.name}</Text>
+            <Text style={styles.author}>👤 {comic.author}</Text>
+            <Text style={styles.desc} numberOfLines={2}>
+              {comic.description}
+            </Text>
+            <View style={styles.meta}>
+              <Text style={styles.tag}>⭐ {comic.ratings}</Text>
+              <Text style={styles.tag}>👁 {comic.views.toLocaleString()}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.followButton}
+            onPress={() => toggleFollow(comic)}
+          >
+            {isBookMarked ? (
+              <Heart fill="#ff4444" color="#ff4444" size={22} />
+            ) : (
+              <HeartOff color="#aaa" size={22} />
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      );
+    },
+    [bookmarkedComics, comics],
+  );
+  useEffect(() => {
+    setIsLoading(true);
+    const unsubscribe = firestore()
+      .collection('comics')
+      .onSnapshot(
+        snapshot => {
+          console.log(snapshot.docs);
+          const data: TComic[] = snapshot.docs.map(doc => {
+            const d = doc.data() as any;
+            return {
+              id: doc.id,
+              ...d,
+            };
+          });
+          updateComics(data);
+          setTimeout(() => {
+            setIsLoading(false);
+          }, 200);
+        },
+        error => {
+          console.error('Error loading comics:', error);
+        },
+      );
+
+    return unsubscribe;
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -144,49 +212,19 @@ const MainScreen = () => {
           ))}
         </ScrollView>
       </View>
-
-      <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-        {filtered.length === 0 ? (
-          <Text style={styles.emptyText}>Không có truyện nào phù hợp</Text>
-        ) : (
-          filtered.map(comic => (
-            <TouchableOpacity
-              key={comic.id}
-              style={styles.card}
-              onPress={() => navigationRef.navigate('ComicDetail')}
-            >
-              <Image source={{ uri: comic.banner }} style={styles.cover} />
-              <View style={styles.info}>
-                <Text style={styles.name}>{comic.name}</Text>
-                <Text style={styles.author}>👤 {comic.author}</Text>
-                <Text style={styles.desc} numberOfLines={2}>
-                  {comic.description}
-                </Text>
-                <View style={styles.meta}>
-                  <Text style={styles.tag}>⭐ {comic.rating}</Text>
-                  <Text style={styles.tag}>
-                    👁 {comic.views.toLocaleString()}
-                  </Text>
-                  <Text style={[styles.tag, { color: '#0af' }]}>
-                    {comic.status}
-                  </Text>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.followButton}
-                onPress={() => toggleFollow(comic.id)}
-              >
-                {followed.includes(comic.id) ? (
-                  <Heart fill="#ff4444" color="#ff4444" size={22} />
-                ) : (
-                  <HeartOff color="#aaa" size={22} />
-                )}
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator color={'white'} />
+        </View>
+      ) : (
+        <View style={styles.list}>
+          {filtered.length === 0 ? (
+            <Text style={styles.emptyText}>Không có truyện nào phù hợp</Text>
+          ) : (
+            <FlatList data={filtered} renderItem={renderComicItem} />
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 };
@@ -249,7 +287,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     position: 'relative',
   },
-  cover: { width: 100, height: 130, borderRadius: 8 },
+  cover: { width: 100, height: 120, borderRadius: 8 },
   info: { flex: 1, marginLeft: 10 },
   name: { color: '#fff', fontWeight: '700', fontSize: 16 },
   author: { color: '#aaa', marginVertical: 2 },
@@ -258,4 +296,9 @@ const styles = StyleSheet.create({
   tag: { color: '#ffcc00', fontSize: 13 },
   followButton: { position: 'absolute', top: 10, right: 10 },
   emptyText: { color: '#888', textAlign: 'center', marginTop: 30 },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
 });

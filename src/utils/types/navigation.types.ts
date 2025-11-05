@@ -1,5 +1,7 @@
 export type TAppNavigationParam = {
   Main: undefined;
-  ComicDetail: undefined;
-  ComicReader: undefined;
+  ComicDetail: {
+    id: string;
+  };
+  ComicReader: { comicId: string; chapterId: string };
 };
