@@ -19,47 +19,8 @@ import firestore from '@react-native-firebase/firestore';
 import { useComicStore } from '@src/zustand/useComicStore';
 import { TComic } from '@src/utils/types/comic.types';
 import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
+import AdsBanner from '@src/components/AdsBanner';
 
-const comics = [
-  {
-    id: '1',
-    name: 'Đại Quản Gia Là Ma Hoàng',
-    author: 'Yi Nan',
-    description:
-      'Ma hoàng chuyển sinh thành quản gia — hành trình vừa hài hước vừa bi tráng!',
-    banner:
-      'https://static.sach.chat/sachchat-image/original-cover1704603733666-blob.jpg',
-    rating: 4.9,
-    views: 520000,
-    status: 'Đang ra',
-    tags: ['Fantasy', 'Action', 'Hài Hước'],
-  },
-  {
-    id: '2',
-    name: 'Toàn Chức Pháp Sư',
-    author: 'Chaos',
-    description:
-      'Một học sinh bình thường thức tỉnh thành pháp sư mạnh nhất thế giới.',
-    banner:
-      'https://thuvienanime.net/wp-content/uploads/2023/04/toan-chuc-phap-su-thuvienanime-1.jpg',
-    rating: 4.8,
-    views: 720000,
-    status: 'Hoàn thành',
-    tags: ['Magic', 'Adventure', 'School Life'],
-  },
-  {
-    id: '3',
-    name: 'Solo Leveling',
-    author: 'Chu-Gong',
-    description: 'Từ thợ săn yếu nhất trở thành người mạnh nhất nhân loại.',
-    banner:
-      'https://static2.vieon.vn/vieplay-image/poster_v4/2025/09/26/ehgrj4hj_660x946-chuyensinhthathoangtu-s2.png',
-    rating: 4.9,
-    views: 1200000,
-    status: 'Hoàn thành',
-    tags: ['Action', 'Fantasy'],
-  },
-];
 const categories = [
   'Tất cả',
   'Action',
@@ -225,6 +186,8 @@ const MainScreen = () => {
           )}
         </View>
       )}
+      <View style={styles.gapSpace} />
+      <AdsBanner />
     </SafeAreaView>
   );
 };
@@ -300,5 +263,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 20,
+  },
+  gapSpace: {
+    flex: 1,
   },
 });

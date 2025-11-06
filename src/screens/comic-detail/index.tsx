@@ -24,6 +24,8 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TAppNavigationParam } from '@src/utils/types/navigation.types';
 import { TChapter } from '@src/utils/types/comic.types';
 import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
+import AdsBanner from '@src/components/AdsBanner';
+import AdsInterstitial from '@src/components/AdsInterstitial';
 
 type Props = NativeStackScreenProps<TAppNavigationParam, 'ComicDetail'>;
 
@@ -172,7 +174,7 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
               </Text>
             </TouchableOpacity>
           </View>
-
+          <AdsBanner />
           <View style={styles.divider} />
 
           <View style={styles.searchContainer}>
@@ -225,6 +227,7 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
           </View>
         </View>
       </ScrollView>
+      <AdsInterstitial />
     </SafeAreaView>
   );
 };
@@ -276,12 +279,13 @@ const styles = StyleSheet.create({
   },
   statusBadge: { borderWidth: 1, borderColor: '#ff9f3f' },
   badgeText: { color: '#ddd', fontSize: 12 },
-  content: { marginTop: 56, paddingHorizontal: 16, paddingBottom: 32 },
+  content: { marginTop: 56, paddingBottom: 32 },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
+    paddingHorizontal: 16,
   },
   tagChip: {
     fontSize: 12,
@@ -299,9 +303,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 6,
     marginTop: 12,
+    paddingHorizontal: 16,
   },
-  desc: { color: '#cfcfcf', fontSize: 14, lineHeight: 20 },
-  buttonRow: { flexDirection: 'row', marginTop: 18, gap: 10 },
+  desc: {
+    color: '#cfcfcf',
+    fontSize: 14,
+    lineHeight: 20,
+    paddingHorizontal: 16,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    marginTop: 18,
+    gap: 10,
+    paddingHorizontal: 16,
+  },
   readButton: {
     flex: 1,
     flexDirection: 'row',
@@ -325,7 +340,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   followText: { fontWeight: '600', fontSize: 14 },
-  divider: { height: 1, backgroundColor: '#1b1b1f', marginVertical: 16 },
+  divider: {
+    height: 1,
+    backgroundColor: '#1b1b1f',
+    marginTop: 8,
+    marginBottom: 16,
+  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,9 +355,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 6,
     marginBottom: 12,
+    marginHorizontal: 16,
   },
   searchInput: { flex: 1, color: '#fff', fontSize: 14 },
-  chapterList: { marginTop: 4 },
+  chapterList: { marginTop: 4, paddingHorizontal: 16 },
   chapterItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',

@@ -19,6 +19,7 @@ import TurboImage from 'react-native-turbo-image';
 import { Zoomable } from '@likashefqet/react-native-image-zoom';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { navigationRef } from '@src/navigations';
+import AdsBanner from '@src/components/AdsBanner';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -194,9 +195,6 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
                     backgroundColor: '#111',
                   }}
                   isProgressiveImageRenderingEnabled
-                  placeholder={{
-                    blurhash: 'LMDvWTM{4T%M~pIoD%WV-;WBRPWV',
-                  }}
                   resizeMode="contain"
                 />
               </Zoomable>
@@ -209,7 +207,7 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
             </Text>
           </View>
         </Animated.ScrollView>
-
+        <AdsBanner />
         {scrollUpVisible && (
           <TouchableOpacity style={styles.scrollTopBtn} onPress={scrollToTop}>
             <ChevronUp color="black" size={22} />
