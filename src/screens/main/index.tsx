@@ -21,15 +21,6 @@ import { TComic } from '@src/utils/types/comic.types';
 import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
 import AdsBanner from '@src/components/AdsBanner';
 
-const categories = [
-  'Tất cả',
-  'Action',
-  'Fantasy',
-  'Hài Hước',
-  'Magic',
-  'Adventure',
-];
-
 const MainScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const comics = useComicStore(state => state.comics);
@@ -38,7 +29,10 @@ const MainScreen = () => {
     state => state.updateBookMarkComic,
   );
   const bookmarkedComics = useComicBookMarkStore(state => state.comics);
-
+  const categories = useMemo(() => {
+    const allTags = comics.flatMap(item => item.hash_tags || []);
+    return ['Tất cả', ...Array.from(new Set(allTags))];
+  }, [comics]);
   const [activeTab, setActiveTab] = useState<'all' | 'followed'>('all');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('Tất cả');
@@ -49,8 +43,10 @@ const MainScreen = () => {
   };
 
   const filtered = useMemo(() => {
-    let list = (activeTab === 'all' ? comics : bookmarkedComics).filter(c =>
-      c.name.toLowerCase().includes(search.toLowerCase()),
+    let list = (activeTab === 'all' ? comics : bookmarkedComics).filter(
+      c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.author.toLowerCase().includes(search.toLowerCase()),
     );
     if (category !== 'Tất cả')
       list = list.filter(c => c.hash_tags.includes(category));
@@ -66,45 +62,57 @@ const MainScreen = () => {
   }, [comics, bookmarkedComics, search, category, sortBy, activeTab]);
   const renderComicItem = useCallback(
     ({ item: comic }: ListRenderItemInfo<TComic>) => {
-      const isBookMarked = bookmarkedComics.find(item => item.id === comic.id);
+      const isBookMarked = !!bookmarkedComics.find(
+        item => item.id === comic.id,
+      );
+
       return (
         <TouchableOpacity
-          key={comic.id}
           style={styles.card}
           onPress={() =>
             navigationRef.navigate('ComicDetail', {
               id: comic.id,
             })
           }
+          activeOpacity={0.8}
         >
-          <Image source={{ uri: comic.banner }} style={styles.cover} />
-          <View style={styles.info}>
-            <Text style={styles.name}>{comic.name}</Text>
-            <Text style={styles.author}>👤 {comic.author}</Text>
-            <Text style={styles.desc} numberOfLines={2}>
-              {comic.description}
-            </Text>
-            <View style={styles.meta}>
-              <Text style={styles.tag}>⭐ {comic.ratings}</Text>
-              <Text style={styles.tag}>👁 {comic.views.toLocaleString()}</Text>
+          <View style={styles.coverWrapper}>
+            <Image source={{ uri: comic.banner }} style={styles.cover} />
+            <View style={styles.coverOverlay} />
+
+            <View style={styles.badgeRow}>
+              <Text style={styles.badgeText}>⭐ {comic.ratings}</Text>
+              <Text style={styles.badgeText}>
+                👁 {comic.views.toLocaleString()}
+              </Text>
             </View>
+
+            <TouchableOpacity
+              style={styles.followButton}
+              onPress={() => toggleFollow(comic)}
+            >
+              {isBookMarked ? (
+                <Heart fill="#ff4444" color="#ff4444" size={18} />
+              ) : (
+                <HeartOff color="#f5f5f5" size={18} />
+              )}
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={styles.followButton}
-            onPress={() => toggleFollow(comic)}
-          >
-            {isBookMarked ? (
-              <Heart fill="#ff4444" color="#ff4444" size={22} />
-            ) : (
-              <HeartOff color="#aaa" size={22} />
-            )}
-          </TouchableOpacity>
+          <View style={styles.info}>
+            <Text style={styles.name} numberOfLines={2}>
+              {comic.name}
+            </Text>
+            <Text style={styles.author} numberOfLines={1}>
+              {comic.author}
+            </Text>
+          </View>
         </TouchableOpacity>
       );
     },
-    [bookmarkedComics, comics],
+    [bookmarkedComics, toggleFollow],
   );
+
   useEffect(() => {
     setIsLoading(true);
     const unsubscribe = firestore()
@@ -182,7 +190,14 @@ const MainScreen = () => {
           {filtered.length === 0 ? (
             <Text style={styles.emptyText}>Không có truyện nào phù hợp</Text>
           ) : (
-            <FlatList data={filtered} renderItem={renderComicItem} />
+            <FlatList
+              data={filtered}
+              renderItem={renderComicItem}
+              keyExtractor={item => item.id}
+              numColumns={2}
+              columnWrapperStyle={styles.columnWrapper}
+              contentContainerStyle={styles.listContent}
+            />
           )}
         </View>
       )}
@@ -240,24 +255,74 @@ const styles = StyleSheet.create({
   filterChipActive: { backgroundColor: '#ff5b00' },
   filterText: { color: '#aaa', fontWeight: '600' },
   filterTextActive: { color: '#fff' },
-  list: { paddingHorizontal: 16, marginTop: 8 },
+
+  list: { flex: 1, paddingHorizontal: 12, marginTop: 8 },
+  listContent: {
+    paddingBottom: 16,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+
   card: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
+    flex: 1,
+    marginHorizontal: 4,
+    maxWidth: '50%',
+  },
+  coverWrapper: {
     borderRadius: 12,
     overflow: 'hidden',
-    padding: 8,
-    marginBottom: 12,
     position: 'relative',
+    backgroundColor: '#222',
   },
-  cover: { width: 100, height: 120, borderRadius: 8 },
-  info: { flex: 1, marginLeft: 10 },
-  name: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  author: { color: '#aaa', marginVertical: 2 },
-  desc: { color: '#ccc', fontSize: 13 },
-  meta: { flexDirection: 'row', gap: 10, marginTop: 6 },
-  tag: { color: '#ffcc00', fontSize: 13 },
-  followButton: { position: 'absolute', top: 10, right: 10 },
+  cover: {
+    aspectRatio: 1,
+  },
+  coverOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '28%',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  badgeRow: {
+    position: 'absolute',
+    bottom: 6,
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  badgeText: {
+    fontSize: 16,
+    color: '#ffeb99',
+    fontWeight: '600',
+  },
+  followButton: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    padding: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+
+  info: {
+    marginTop: 6,
+  },
+  name: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  author: {
+    color: '#9f9f9f',
+    fontSize: 11,
+    marginTop: 2,
+  },
+
   emptyText: { color: '#888', textAlign: 'center', marginTop: 30 },
   loadingContainer: {
     justifyContent: 'center',
@@ -265,6 +330,6 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   gapSpace: {
-    flex: 1,
+    height: 8,
   },
 });

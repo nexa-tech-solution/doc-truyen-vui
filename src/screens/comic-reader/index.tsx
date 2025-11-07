@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   footerText: { color: '#777', fontSize: 13, fontStyle: 'italic' },
   scrollTopBtn: {
     position: 'absolute',
-    bottom: 40,
+    bottom: 120,
     right: 20,
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: 50,
