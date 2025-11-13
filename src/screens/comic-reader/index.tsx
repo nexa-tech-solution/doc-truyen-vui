@@ -1,27 +1,36 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Animated,
   Dimensions,
   StatusBar,
   NativeSyntheticEvent,
   NativeScrollEvent,
   Image as RNImage,
-  Image,
+  FlatList,
 } from 'react-native';
 import { ArrowLeft, ArrowRight, ChevronUp } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useComicStore } from '@src/zustand/useComicStore';
-import TurboImage from 'react-native-turbo-image';
-import { Zoomable } from '@likashefqet/react-native-image-zoom';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import TurboImage from 'react-native-turbo-image';
+import { useComicStore } from '@src/zustand/useComicStore';
 import { navigationRef } from '@src/navigations';
 import AdsBanner from '@src/components/AdsBanner';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const DEFAULT_ASPECT = 1.6;
+
+function toDirectDriveUrl(rawUrl: string) {
+  const m1 = rawUrl.match(/\/d\/([^/]+)/);
+  const m2 = rawUrl.match(/[?&]id=([^&]+)/);
+  const fileId = m1?.[1] ?? m2?.[1];
+  if (!fileId) return rawUrl;
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+}
+
+type Size = { w: number; h: number };
 
 const ComicReaderScreen = ({ route, navigation }: any) => {
   const { comicId, chapterId } = route.params as {
@@ -35,87 +44,122 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
   const comic = getComic(comicId);
   const chapter = getChapter(comicId, chapterId);
 
-  function toDirectDriveUrl(rawUrl: string) {
-    const m1 = rawUrl.match(/\/d\/([^/]+)/);
-    const m2 = rawUrl.match(/[?&]id=([^&]+)/);
-    const fileId = m1?.[1] ?? m2?.[1];
-    if (!fileId) return rawUrl;
-
-    // 👇 Use "download" to force original file
-    return `https://drive.google.com/uc?export=download&id=${fileId}`;
-  }
-
-  const scrollRef = useRef<any>(null);
+  const scrollRef = useRef<FlatList<string> | null>(null);
   const [scrollUpVisible, setScrollUpVisible] = useState(false);
-  const [sizes, setSizes] = useState<{
-    [key: number]: { w: number; h: number };
-  }>({});
+  const [sizes, setSizes] = useState<Record<string, Size>>({});
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
-    if (y > 300 && !scrollUpVisible) {
-      setScrollUpVisible(true);
-    } else if (y <= 300 && scrollUpVisible) {
-      setScrollUpVisible(false);
-    }
+    if (y > 300 && !scrollUpVisible) setScrollUpVisible(true);
+    else if (y <= 300 && scrollUpVisible) setScrollUpVisible(false);
   };
 
   const scrollToTop = () => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+    scrollRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 60,
+  }).current;
+
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+      if (!viewableItems.length) return;
+      const indices = viewableItems
+        .map(v => v.index)
+        .filter((i): i is number => i !== null && i !== undefined);
+      if (!indices.length) return;
+      const minIndex = Math.min(...indices);
+      setCurrentIndex(minIndex);
+    },
+  ).current;
 
   useEffect(() => {
     if (!chapter) return;
+    const links = chapter.links;
+    const targets = [
+      currentIndex,
+      currentIndex + 1,
+      currentIndex + 2,
+      currentIndex + 3,
+      currentIndex + 4,
+    ];
 
-    let cancelled = false;
+    targets.forEach(i => {
+      if (i < 0 || i >= links.length) return;
+      const uri = toDirectDriveUrl(links[i]);
+      if (sizes[uri]) return;
 
-    const loadSizes = async () => {
-      const entries = await Promise.all(
-        chapter.links.map(
-          (img, index) =>
-            new Promise<[number, { w: number; h: number } | null]>(resolve => {
-              const uri = toDirectDriveUrl(img);
-              RNImage.getSize(
-                uri,
-                (w, h) => resolve([index, { w, h }]),
-                () => resolve([index, null]),
-              );
-            }),
-        ),
+      RNImage.getSize(
+        uri,
+        (w, h) => {
+          setSizes(prev => (prev[uri] ? prev : { ...prev, [uri]: { w, h } }));
+        },
+        () => {
+          setSizes(prev =>
+            prev[uri]
+              ? prev
+              : {
+                  ...prev,
+                  [uri]: { w: SCREEN_WIDTH, h: SCREEN_WIDTH * DEFAULT_ASPECT },
+                },
+          );
+        },
       );
+    });
+  }, [chapter, currentIndex, sizes]);
 
-      if (cancelled) return;
-
-      const map: { [key: number]: { w: number; h: number } } = {};
-      entries.forEach(([i, size]) => {
-        if (size) map[i] = size;
-      });
-      setSizes(map);
-    };
-
-    loadSizes();
-    return () => {
-      cancelled = true;
-    };
-  }, [chapter]);
   if (!comic || !chapter) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#000" />
-        <View
-          style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}
-        >
-          <Text style={{ color: '#fff', marginBottom: 12 }}>
+        <View style={styles.notFoundWrapper}>
+          <Text style={styles.notFoundText}>
             Không tìm thấy truyện hoặc chương
           </Text>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={{ color: '#ff5b00' }}>Quay lại</Text>
+            <Text style={styles.notFoundBack}>Quay lại</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
-  console.log(chapterId);
+
+  const hasNextChapter =
+    comic.chapters?.length &&
+    comic.chapters.some(c => c.chapter === chapter.chapter + 1);
+
+  const nextChapterId = `chapter_${chapter.chapter + 1}`;
+
+  const renderItem = ({ item }: { item: string }) => {
+    const uri = toDirectDriveUrl(item);
+    const size = sizes[uri];
+
+    const w = size?.w ?? SCREEN_WIDTH;
+    const h = size?.h ?? SCREEN_WIDTH * DEFAULT_ASPECT;
+    const aspect = h / w || DEFAULT_ASPECT;
+
+    const displayWidth = SCREEN_WIDTH;
+    const displayHeight = displayWidth * aspect;
+
+    return (
+      <TurboImage
+        source={{ uri }}
+        style={{
+          width: displayWidth,
+          height: displayHeight,
+          backgroundColor: '#111',
+        }}
+        indicator={{ color: 'white' }}
+        placeholder={{ memoryCacheKey: uri }}
+        showPlaceholderOnFailure
+        isProgressiveImageRenderingEnabled
+        resizeMode="contain"
+      />
+    );
+  };
+
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaView style={styles.container}>
@@ -134,15 +178,14 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
             </Text>
             <Text style={styles.subTitle}>Chap {chapter.chapter}</Text>
           </View>
-          {comic.chapters[0].chapter !== chapter.chapter && (
+          {hasNextChapter && (
             <TouchableOpacity
               style={styles.nextButton}
               onPress={() => {
                 navigationRef.replaceParams({
-                  comicId: comicId,
-                  chapterId: `chapter_${chapter.chapter + 1}`,
+                  comicId,
+                  chapterId: nextChapterId,
                 });
-                // navigate next chap later
               }}
             >
               <Text style={styles.title}>Chap {chapter.chapter + 1}</Text>
@@ -151,63 +194,26 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
           )}
         </View>
 
-        <Animated.ScrollView
+        <FlatList
           ref={scrollRef}
+          data={chapter.links}
+          keyExtractor={(item, index) => item + index}
+          renderItem={renderItem}
           style={styles.scroll}
           scrollEventThrottle={16}
           onScroll={handleScroll}
           showsVerticalScrollIndicator={false}
-        >
-          {chapter.links.map((img, i) => {
-            const size = sizes[i];
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          ListFooterComponent={
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>
+                — Hết chap {chapter.chapter} —
+              </Text>
+            </View>
+          }
+        />
 
-            let baseWidth = SCREEN_WIDTH;
-            let baseHeight = SCREEN_WIDTH * 1.6;
-
-            if (size) {
-              const { w, h } = size;
-              const aspect = h / w || 1.6;
-              console.log(i, size);
-              const scale = Math.min(SCREEN_WIDTH / w, 3);
-
-              baseWidth = w * scale;
-              baseHeight = baseWidth * aspect;
-            }
-
-            const uri = toDirectDriveUrl(img);
-            return (
-              <Zoomable
-                key={img + i}
-                minScale={1}
-                maxScale={4}
-                doubleTapScale={2.5}
-                style={{
-                  width: baseWidth,
-                  height: baseHeight,
-                  alignSelf: 'center',
-                }}
-              >
-                <TurboImage
-                  source={{ uri }}
-                  style={{
-                    width: baseWidth,
-                    height: baseHeight,
-                    backgroundColor: '#111',
-                  }}
-                  isProgressiveImageRenderingEnabled
-                  resizeMode="contain"
-                />
-              </Zoomable>
-            );
-          })}
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              — Hết chap {chapter.chapter} —
-            </Text>
-          </View>
-        </Animated.ScrollView>
-        <AdsBanner />
         {scrollUpVisible && (
           <TouchableOpacity style={styles.scrollTopBtn} onPress={scrollToTop}>
             <ChevronUp color="black" size={22} />
@@ -231,9 +237,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 10,
   },
-  headerContent: {
-    flex: 1,
-  },
+  headerContent: { flex: 1 },
   backButton: { padding: 4 },
   nextButton: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   title: { color: '#fff', fontWeight: '700', fontSize: 15, maxWidth: 180 },
@@ -252,4 +256,7 @@ const styles = StyleSheet.create({
     borderColor: '#333',
     zIndex: 999,
   },
+  notFoundWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  notFoundText: { color: '#fff', marginBottom: 12 },
+  notFoundBack: { color: '#ff5b00' },
 });

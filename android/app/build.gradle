@@ -79,7 +79,7 @@ android {
 
     namespace "com.doc_truyen_vui"
     defaultConfig {
-        applicationId "com.nexa.doc_truyen_vui"
+        applicationId "com.nexa.doc_truyen_vui_moi_ngay"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

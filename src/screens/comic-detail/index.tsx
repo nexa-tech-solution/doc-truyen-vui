@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  StatusBar,
 } from 'react-native';
 import {
   Heart,
@@ -15,6 +16,9 @@ import {
   BookOpen,
   Search,
   ArrowLeft,
+  ArrowDown,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { navigationRef } from '@src/navigations';
@@ -35,15 +39,14 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
   const updateBookMarkComic = useComicBookMarkStore(
     state => state.updateBookMarkComic,
   );
-  const bookmarkedComics = useComicBookMarkStore(state => state.comics);
+  const bookmarkedComicIds = useComicBookMarkStore(state => state.comics);
 
   const isCheckBookMark = useMemo(
-    () => bookmarkedComics.find(item => item.id === comic?.id),
-    [bookmarkedComics, comic],
+    () => bookmarkedComicIds.find(item => item === comic?.id),
+    [bookmarkedComicIds, comic],
   );
-  const [isFollowed, setIsFollowed] = useState(false);
   const [search, setSearch] = useState('');
-
+  const [isViewMore, setIsViewMore] = useState(false);
   useEffect(() => {
     if (!comic?.id) return;
 
@@ -64,6 +67,7 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
               links: d.links || [],
             };
           });
+          console.log('Chapter', data);
           updateComicChapter(comic.id, data);
         },
         error => {
@@ -81,8 +85,11 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
     );
   }, [search, comic?.chapters]);
   if (!comic) return <View />;
+  console.log(comic);
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Banner */}
         <View style={styles.headerArea}>
@@ -100,22 +107,30 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
           <View style={styles.posterWrapper}>
             <Image source={{ uri: comic.banner }} style={styles.poster} />
             <View style={styles.posterInfo}>
-              <Text style={styles.comicName} numberOfLines={2}>
-                {comic.name}
-              </Text>
-              <Text style={styles.authorText}>👤 {comic.author}</Text>
-
-              <View style={styles.badgeRow}>
-                <View style={styles.badge}>
-                  <Star size={14} color="#ffcc00" />
-                  <Text style={styles.badgeText}>{comic.ratings}</Text>
+              <View>
+                <Text style={styles.comicName} numberOfLines={2}>
+                  {comic.name}
+                </Text>
+                <Text style={styles.authorText}>👤 {comic.author}</Text>
+                <View style={styles.badgeRow}>
+                  <View style={styles.badge}>
+                    <Star size={14} color="#ffcc00" />
+                    <Text style={styles.badgeText}>{comic.ratings}</Text>
+                  </View>
+                  <View style={styles.badge}>
+                    <Eye size={14} color="#0af" />
+                    <Text style={styles.badgeText}>
+                      {comic.views.toLocaleString()}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.badge}>
-                  <Eye size={14} color="#0af" />
-                  <Text style={styles.badgeText}>
-                    {comic.views.toLocaleString()}
+              </View>
+              <View style={styles.tagsContainer}>
+                {comic.hash_tags?.map((tag: any) => (
+                  <Text key={tag} style={styles.tagChip}>
+                    #{tag}
                   </Text>
-                </View>
+                ))}
               </View>
             </View>
           </View>
@@ -123,16 +138,23 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
 
         {/* Nội dung */}
         <View style={styles.content}>
-          <View style={styles.tagsContainer}>
-            {comic.hash_tags?.map((tag: any) => (
-              <Text key={tag} style={styles.tagChip}>
-                #{tag}
-              </Text>
-            ))}
-          </View>
-
           <Text style={styles.sectionTitle}>Giới thiệu</Text>
-          <Text style={styles.desc}>{comic.description}</Text>
+          <Text style={styles.desc} numberOfLines={isViewMore ? undefined : 4}>
+            {comic.description}
+          </Text>
+          <TouchableOpacity
+            style={styles.viewMoreButton}
+            onPress={() => setIsViewMore(!isViewMore)}
+          >
+            <Text style={styles.viewMore}>
+              {isViewMore ? 'Rút gọn' : 'Xem thêm'}
+            </Text>
+            {isViewMore ? (
+              <ChevronUp color={'white'} size={14} />
+            ) : (
+              <ChevronDown color={'white'} size={14} />
+            )}
+          </TouchableOpacity>
 
           <View style={styles.buttonRow}>
             <TouchableOpacity
@@ -157,7 +179,7 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
                 styles.followButton,
                 isCheckBookMark && { borderColor: '#ff4444' },
               ]}
-              onPress={() => updateBookMarkComic(comic)}
+              onPress={() => updateBookMarkComic(comic.id)}
             >
               <Heart
                 size={18}
@@ -170,11 +192,10 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
                   { color: isCheckBookMark ? '#ff4444' : '#ddd' },
                 ]}
               >
-                {isFollowed ? 'Đang theo dõi' : 'Theo dõi'}
+                {isCheckBookMark ? 'Đang theo dõi' : 'Theo dõi'}
               </Text>
             </TouchableOpacity>
           </View>
-          <AdsBanner />
           <View style={styles.divider} />
 
           <View style={styles.searchContainer}>
@@ -227,7 +248,7 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
           </View>
         </View>
       </ScrollView>
-      <AdsInterstitial />
+      {/* <AdsInterstitial /> */}
     </SafeAreaView>
   );
 };
@@ -285,17 +306,17 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
-    paddingHorizontal: 16,
+    marginTop: 5,
   },
   tagChip: {
     fontSize: 12,
     color: '#ddd',
     backgroundColor: '#1b1b1f',
     paddingHorizontal: 10,
-    paddingVertical: 4,
     textAlign: 'center',
     textAlignVertical: 'center',
     borderRadius: 999,
+    height: 25,
   },
   sectionTitle: {
     color: '#fff',
@@ -368,4 +389,12 @@ const styles = StyleSheet.create({
   },
   chapterName: { color: '#fff', fontSize: 15, marginBottom: 2 },
   chapterDate: { color: '#888', fontSize: 12 },
+  viewMoreButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewMore: {
+    color: 'white',
+    fontSize: 14,
+  },
 });

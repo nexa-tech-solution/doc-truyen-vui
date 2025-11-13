@@ -10,6 +10,7 @@ import {
   ListRenderItemInfo,
   FlatList,
   ActivityIndicator,
+  StatusBar,
 } from 'react-native';
 import { Heart, HeartOff } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,7 +29,10 @@ const MainScreen = () => {
   const updateBookMarkComic = useComicBookMarkStore(
     state => state.updateBookMarkComic,
   );
-  const bookmarkedComics = useComicBookMarkStore(state => state.comics);
+  const bookmarkedComicIds = useComicBookMarkStore(state => state.comics);
+  const bookmarkedComics = useMemo(() => {
+    return comics.filter(item => bookmarkedComicIds.includes(item.id));
+  }, [comics, bookmarkedComicIds]);
   const categories = useMemo(() => {
     const allTags = comics.flatMap(item => item.hash_tags || []);
     return ['Tất cả', ...Array.from(new Set(allTags))];
@@ -39,7 +43,7 @@ const MainScreen = () => {
   const [sortBy, setSortBy] = useState('Mới nhất');
 
   const toggleFollow = (comic: TComic) => {
-    updateBookMarkComic(comic);
+    updateBookMarkComic(comic.id);
   };
 
   const filtered = useMemo(() => {
@@ -142,6 +146,8 @@ const MainScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
       <Text style={styles.header}>📖 Truyện Online</Text>
 
       <TabHeader activeTab={activeTab} onSwitch={setActiveTab} />
@@ -202,7 +208,6 @@ const MainScreen = () => {
         </View>
       )}
       <View style={styles.gapSpace} />
-      <AdsBanner />
     </SafeAreaView>
   );
 };
