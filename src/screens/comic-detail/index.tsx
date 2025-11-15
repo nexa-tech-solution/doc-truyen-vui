@@ -28,13 +28,14 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { TAppNavigationParam } from '@src/utils/types/navigation.types';
 import { TChapter } from '@src/utils/types/comic.types';
 import { useComicBookMarkStore } from '@src/zustand/useComicBookMarkStore';
-import AdsBanner from '@src/components/AdsBanner';
-import AdsInterstitial from '@src/components/AdsInterstitial';
+import { useComicReadStore } from '@src/zustand/useComicReadStore';
 
 type Props = NativeStackScreenProps<TAppNavigationParam, 'ComicDetail'>;
 
 const ComicDetailScreen = ({ route, navigation }: Props) => {
   const comic = useComicStore(state => state.getComic(route.params.id));
+  const comicReads = useComicReadStore(state => state.comics);
+  const updateChapterRead = useComicReadStore(state => state.updateReadComic);
   const updateComicChapter = useComicStore(state => state.updateComicChapter);
   const updateBookMarkComic = useComicBookMarkStore(
     state => state.updateBookMarkComic,
@@ -218,32 +219,43 @@ const ComicDetailScreen = ({ route, navigation }: Props) => {
                 Không tìm thấy chương nào
               </Text>
             ) : (
-              filteredChapters?.map((ch, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.chapterItem}
-                  onPress={() =>
-                    navigationRef.navigate('ComicReader', {
-                      comicId: comic.id,
-                      chapterId: ch.id,
-                    })
-                  }
-                >
-                  <View>
-                    <Text
-                      style={styles.chapterName}
-                    >{`Chap ${ch.chapter}`}</Text>
-                    <Text style={styles.chapterDate}>
-                      {ch.createdAt
-                        ? `Cập nhật ${ch.createdAt.toLocaleDateString('vi-VN')}`
-                        : ''}
-                    </Text>
-                  </View>
-                  <Text style={{ color: '#888', fontSize: 12 }}>
-                    {ch.count} trang
-                  </Text>
-                </TouchableOpacity>
-              ))
+              filteredChapters?.map((ch, index) => {
+                const isRead = comicReads
+                  .find(item => item.id === comic.id)
+                  ?.chapterIds?.includes(ch.id);
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.chapterItem}
+                    onPress={() => {
+                      updateChapterRead(comic.id, ch.id);
+                      navigationRef.navigate('ComicReader', {
+                        comicId: comic.id,
+                        chapterId: ch.id,
+                      });
+                    }}
+                  >
+                    <View>
+                      <Text
+                        style={styles.chapterName}
+                      >{`Chap ${ch.chapter}`}</Text>
+                      <Text style={styles.chapterDate}>
+                        {ch.createdAt
+                          ? `Cập nhật ${ch.createdAt.toLocaleDateString(
+                              'vi-VN',
+                            )}`
+                          : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.chapterRightSection}>
+                      {isRead && <Star size={14} color="#ffcc00" />}
+                      <Text style={{ color: '#888', fontSize: 12 }}>
+                        {ch.count} trang
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })
             )}
           </View>
         </View>
@@ -386,6 +398,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomColor: '#1b1b1f',
     borderBottomWidth: 1,
+  },
+  chapterRightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   chapterName: { color: '#fff', fontSize: 15, marginBottom: 2 },
   chapterDate: { color: '#888', fontSize: 12 },

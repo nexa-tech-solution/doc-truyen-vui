@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:5540315757:android:53df9b387d1e5050103564",
+        "mobilesdk_app_id": "1:5540315757:android:c04c179b0897b7ac103564",
         "android_client_info": {
-          "package_name": "com.nexa.doc_truyen_vui"
+          "package_name": "com.nexa.doc_truyen_vui_moi_ngay"
         }
       },
       "oauth_client": [],
