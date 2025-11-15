@@ -18,6 +18,8 @@ import TurboImage from 'react-native-turbo-image';
 import { useComicStore } from '@src/zustand/useComicStore';
 import { navigationRef } from '@src/navigations';
 import AdsBanner from '@src/components/AdsBanner';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import ReactNativeInAppReview from 'react-native-in-app-review';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DEFAULT_ASPECT = 1.6;
@@ -159,6 +161,22 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
       />
     );
   };
+  const askReview = async () => {
+    const reviewed = await AsyncStorage.getItem('has_reviewed');
+    if (reviewed) return;
+
+    if (ReactNativeInAppReview.isAvailable()) {
+      try {
+        await ReactNativeInAppReview.RequestInAppReview();
+        await AsyncStorage.setItem('has_reviewed', '1');
+      } catch {}
+    }
+  };
+  useEffect(() => {
+    setTimeout(() => {
+      askReview();
+    }, 30000);
+  }, []);
 
   return (
     <GestureHandlerRootView style={styles.container}>
