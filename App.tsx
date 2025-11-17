@@ -4,6 +4,7 @@ import AppNavigation from '@src/navigations';
 import MobileAds from 'react-native-google-mobile-ads';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AdsBanner from '@src/components/AdsBanner';
+import AdsInterstitial from '@src/components/AdsInterstitial';
 
 const App = () => {
   useEffect(() => {
@@ -17,6 +18,7 @@ const App = () => {
     <SafeAreaProvider>
       <AppNavigation />
       <AdsBanner />
+      <AdsInterstitial />
     </SafeAreaProvider>
   );
 };

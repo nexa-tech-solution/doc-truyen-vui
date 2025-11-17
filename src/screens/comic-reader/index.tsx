@@ -17,12 +17,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import TurboImage from 'react-native-turbo-image';
 import { useComicStore } from '@src/zustand/useComicStore';
 import { navigationRef } from '@src/navigations';
-import AdsBanner from '@src/components/AdsBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ReactNativeInAppReview from 'react-native-in-app-review';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DEFAULT_ASPECT = 1.6;
+const PREFETCH_AHEAD = 5;
 
 function toDirectDriveUrl(rawUrl: string) {
   const m1 = rawUrl.match(/\/d\/([^/]+)/);
@@ -79,19 +79,21 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
 
   useEffect(() => {
     if (!chapter) return;
-    const links = chapter.links;
-    const targets = [
-      currentIndex,
-      currentIndex + 1,
-      currentIndex + 2,
-      currentIndex + 3,
-      currentIndex + 4,
-    ];
 
-    targets.forEach(i => {
-      if (i < 0 || i >= links.length) return;
-      const uri = toDirectDriveUrl(links[i]);
+    const links = chapter.links;
+    const targets: number[] = [];
+
+    for (let i = currentIndex; i <= currentIndex + PREFETCH_AHEAD; i += 1) {
+      targets.push(i);
+    }
+
+    targets.forEach(index => {
+      if (index < 0 || index >= links.length) return;
+
+      const uri = toDirectDriveUrl(links[index]);
       if (sizes[uri]) return;
+
+      TurboImage.prefetch([{ uri }]).catch(() => {});
 
       RNImage.getSize(
         uri,
@@ -104,7 +106,10 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
               ? prev
               : {
                   ...prev,
-                  [uri]: { w: SCREEN_WIDTH, h: SCREEN_WIDTH * DEFAULT_ASPECT },
+                  [uri]: {
+                    w: SCREEN_WIDTH,
+                    h: SCREEN_WIDTH * DEFAULT_ASPECT,
+                  },
                 },
           );
         },
@@ -112,6 +117,12 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
     });
   }, [chapter, currentIndex, sizes]);
 
+  useEffect(() => {
+    return () => {
+      TurboImage.clearMemoryCache();
+      TurboImage.clearDiskCache();
+    };
+  }, []);
   if (!comic || !chapter) {
     return (
       <SafeAreaView style={styles.container}>
@@ -223,6 +234,9 @@ const ComicReaderScreen = ({ route, navigation }: any) => {
           showsVerticalScrollIndicator={false}
           viewabilityConfig={viewabilityConfig}
           onViewableItemsChanged={onViewableItemsChanged}
+          initialNumToRender={3}
+          maxToRenderPerBatch={5}
+          windowSize={7}
           ListFooterComponent={
             <View style={styles.footer}>
               <Text style={styles.footerText}>

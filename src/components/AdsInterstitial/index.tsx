@@ -1,12 +1,11 @@
-import { View, Platform, StatusBar } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import { Platform, StatusBar } from 'react-native';
+import { useEffect, useState } from 'react';
 import {
   AdEventType,
   InterstitialAd,
   TestIds,
 } from 'react-native-google-mobile-ads';
 import ADS_IDS from '@src/constants/ads.constants';
-import { useNavigation } from '@react-navigation/native';
 
 const adUnitId = __DEV__ ? TestIds.INTERSTITIAL : ADS_IDS?.interstitial!;
 
@@ -24,7 +23,6 @@ const interstitial = InterstitialAd.createForAdRequest(adUnitId, {
 
 const AdsInterstitial = () => {
   const [loaded, setLoaded] = useState(false);
-  const navigation = useNavigation();
 
   useEffect(() => {
     const unsubscribeLoaded = interstitial.addAdEventListener(
@@ -63,12 +61,14 @@ const AdsInterstitial = () => {
 
   useEffect(() => {
     if (loaded) {
-      interstitial.show();
+      setTimeout(() => {
+        interstitial.show();
+      }, 30000);
       setLoaded(false); // prevent re-showing on re-render
     }
   }, [loaded]);
 
-  return <View />;
+  return null;
 };
 
 export default AdsInterstitial;
